@@ -22,7 +22,7 @@ public class JPEGImage {
     private JPEGImage() {
     }
 
-    private static JPEGImage parseJPEGImage(byte[] content) throws JPEGParseException {
+    public static JPEGImage parseJPEGImage(byte[] content) throws JPEGParseException {
         JPEGImage jpegImage = new JPEGImage();
 
         int currentPosition = 0;
@@ -103,7 +103,7 @@ public class JPEGImage {
         return jpegImage;
     }
 
-    private static JPEGImage parseJPEGImage(File file) throws IOException, JPEGParseException {
+    public static JPEGImage parseJPEGImage(File file) throws IOException, JPEGParseException {
         if (!file.exists())
             throw new FileNotFoundException("File not Exist");
 
@@ -125,27 +125,63 @@ public class JPEGImage {
         }
     }
 
-    private static JPEGImage parseJPEGImage(String path) throws IOException, JPEGParseException {
+    public static JPEGImage parseJPEGImage(String path) throws IOException, JPEGParseException {
         return parseJPEGImage(new File(path));
     }
 
-
+    /**
+     * APP0                              length  Application，应用程序保留标记0
+     * 标记代码                            2     固定值0xFFE0
+     * 包含9个具体字段：
+     * ① 数据长度                         2     ①~⑨9个字段的总长 即不包括标记代码，但包括本字段
+     * ② 标识符                           5     固定值0x4A46494600，即字符串“JFIF0”
+     * ③ 版本号                           2     一般是0x0102，表示JFIF的版本号1.2 可能会有其他数值代表其他版本
+     * ④ X和Y的密度单位                   1     只有三个值可 0：无单位；1：点数/英寸；2：点数/厘米
+     * ⑤ X方向像素密度                    2     取值范围未知
+     * ⑥ Y方向像素密度                    2     取值范围未知
+     * ⑦ 缩略图水平像素数目               1     取值范围未知
+     * ⑧ 缩略图垂直像素数目               1     取值范围未知
+     * ⑨ 缩略图RGB位图                    3x    缩略图RGB位图数据
+     */
     private static class APP0 {
+        private byte[] rawData;
+        private int dataLength;
+        private int densityUnit;
+        private int xDensity;
+        private int yDensity;
+
         private static APP0 parseAPP0(byte[] data) {
-            return new APP0();
+            APP0 app0 = new APP0();
+            app0.rawData = data;
+            app0.dataLength = data[2] << 8 + data[3];
+            app0.densityUnit = data[11];
+            app0.xDensity = data[12] << 8 + data[13];
+            app0.yDensity = data[14] << 8 + data[15];
+            return app0;
         }
     }
 
     private static class APPN {
+
+        private byte[] rawData;
+
         private static APPN parseAPPN(byte[] data) {
-            return new APPN();
+            APPN appn = new APPN();
+            appn.rawData = data;
+            return appn;
+
         }
     }
 
     private static class DQT {
+        private byte[] rawData;
+        private int dataLength;
+
         private static DQT parseDQT(byte[] data) {
             return new DQT();
         }
+
+        
     }
 
     private static class SOF0 {
