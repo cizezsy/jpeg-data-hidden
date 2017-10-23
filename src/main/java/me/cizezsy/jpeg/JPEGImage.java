@@ -34,7 +34,7 @@ public class JPEGImage {
     private SOS sos;
     private ImageData imageData;
     private Tag eoi;
-    private List<ColorComponent> colorComponent = new ArrayList<>();
+    private List<ColorComponent> colorComponents = new ArrayList<>();
 
     //tag that doesn't be process  store in there
     //also make sure their order identical with origin
@@ -47,10 +47,11 @@ public class JPEGImage {
 
     public ColorComponent getOrCreateColorComponent(int id) {
         Optional<ColorComponent> colorComponentInfoOption =
-                this.colorComponent.stream().filter(c -> c.getColorId() == id).findAny();
+                this.colorComponents.stream().filter(c -> c.getColorId() == id).findAny();
 
         ColorComponent colorComponent = colorComponentInfoOption.orElse(new ColorComponent());
         colorComponent.setColorId(id);
+        this.colorComponents.add(colorComponent);
         return colorComponent;
     }
 
@@ -60,6 +61,26 @@ public class JPEGImage {
 
     public int[] getUnsignedByteData() {
         return unsignedByteData;
+    }
+
+    public Optional<HuffmanTable> getAc(int id) {
+        for (DHT dht : this.dht) {
+            for (HuffmanTable hf : dht.getHuffmanTables()) {
+                if (hf.getType() == HuffmanTable.AC && hf.getId() == id)
+                    return Optional.of(hf);
+            }
+        }
+        return Optional.empty();
+    }
+
+    public Optional<HuffmanTable> getDc(int id) {
+        for (DHT dht : this.dht) {
+            for (HuffmanTable hf : dht.getHuffmanTables()) {
+                if (hf.getType() == HuffmanTable.DC && hf.getId() == id)
+                    return Optional.of(hf);
+            }
+        }
+        return Optional.empty();
     }
 
     public Tag getSoi() {
@@ -142,12 +163,12 @@ public class JPEGImage {
         this.eoi = eoi;
     }
 
-    public List<ColorComponent> getColorComponent() {
-        return colorComponent;
+    public List<ColorComponent> getColorComponents() {
+        return colorComponents;
     }
 
-    public void setColorComponent(List<ColorComponent> colorComponent) {
-        this.colorComponent = colorComponent;
+    public void setColorComponents(List<ColorComponent> colorComponents) {
+        this.colorComponents = colorComponents;
     }
 
     public List<Tag> getAllTags() {
@@ -364,6 +385,7 @@ public class JPEGImage {
         public void setHuffmanTables(List<HuffmanTable> huffmanTables) {
             this.huffmanTables = huffmanTables;
         }
+
     }
 
     public static class DRI extends Tag {

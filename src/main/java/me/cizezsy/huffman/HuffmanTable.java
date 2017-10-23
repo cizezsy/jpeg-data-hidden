@@ -3,8 +3,13 @@ package me.cizezsy.huffman;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 public class HuffmanTable {
+
+    public final static int DC = 0;
+    public final static int AC = 1;
+
     private int id;
     private int type;
     private int[] eachNodeNum;
@@ -50,6 +55,14 @@ public class HuffmanTable {
         }
     }
 
+    public Optional<TreeNode> findTreeNode(int bitCode) {
+        for (TreeNode node : treeNodes) {
+            if (node.bitCode == bitCode)
+                return Optional.of(node);
+        }
+        return Optional.empty();
+    }
+
     public int getId() {
         return id;
     }
@@ -82,9 +95,33 @@ public class HuffmanTable {
         this.weights = weights;
     }
 
-    private class TreeNode {
+    public class TreeNode {
         int length;
         int bitCode;
         int weight;
+
+        public int getLength() {
+            return length;
+        }
+
+        public void setLength(int length) {
+            this.length = length;
+        }
+
+        public int getBitCode() {
+            return bitCode;
+        }
+
+        public void setBitCode(int bitCode) {
+            this.bitCode = bitCode;
+        }
+
+        public int getWeight() {
+            return weight;
+        }
+
+        public void setWeight(int weight) {
+            this.weight = weight;
+        }
     }
 }

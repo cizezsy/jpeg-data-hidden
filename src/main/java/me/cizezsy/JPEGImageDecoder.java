@@ -103,7 +103,7 @@ public class JPEGImageDecoder {
     }
 
 
-    private Tag getTag(int[] content, int position) {
+    private JPEGImage.Tag getTag(int[] content, int position) {
         Tag result = new Tag();
 
         if (content[position] != 0xff) {
@@ -206,13 +206,13 @@ public class JPEGImageDecoder {
     private static SOS parseSOS(Tag tag, int[] data, JPEGImage jpegImage) {
         SOS sos = new SOS(tag);
         int start = tag.getPosition() + tag.getStuffing();
-        int sampleNum = data[start + 5];
+        int sampleNum = data[start + 4];
 
         for (int i = 0; i < sampleNum * 2; i += 2) {
-            int colorId = data[start + 6 + i];
+            int colorId = data[start + 5 + i];
             ColorComponent component = jpegImage.getOrCreateColorComponent(colorId);
-            component.setDcId((data[start + 7 + i] >> 4) & 0b1111);
-            component.setAcId(data[start + 7 + i] & 0b1111);
+            component.setDcId((data[start + 6 + i] >> 4) & 0b1111);
+            component.setAcId(data[start + 6 + i] & 0b1111);
         }
 
         return sos;
@@ -224,11 +224,5 @@ public class JPEGImageDecoder {
         return imageData;
     }
 
-    public static void main(String[] args) {
-        try {
-            new JPEGImageDecoder().decode("C:\\Users\\Administrator\\Desktop\\u=3323316342,2515962810&fm=27&gp=0.jpg");
-        } catch (IOException | JPEGDecoderException e) {
-            e.printStackTrace();
-        }
-    }
+
 }
