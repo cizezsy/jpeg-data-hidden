@@ -9,5 +9,6 @@ public class JPEGDataHider {
         int maxMcuX = (jpegImage.getSof0().getWidth() + 8 * h0 - 1) / (8 * h0);
         int maxMcuY = (jpegImage.getSof0().getHeight() + 8 * v0 - 1) / (8 * v0);
 
+        
     }
 }
