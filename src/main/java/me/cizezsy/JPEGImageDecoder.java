@@ -32,13 +32,16 @@ public class JPEGImageDecoder {
             throw new JPEGDecoderException("Not a legal SOI");
 
         jpegImage.setSoi(soiTag);
+        jpegImage.getAllTags().add(soiTag);
         currentPosition += soiTag.getLength();
 
         Tag app0Tag = getTag(unsignedByteContent, currentPosition);
         if (app0Tag.getTag() != JPEGImage.TAG_APP0)
             throw new JPEGDecoderException("Not a legal APP0");
 
-        jpegImage.setApp0(parseAPP0(app0Tag, unsignedByteContent));
+        APP0 app0 = parseAPP0(app0Tag, unsignedByteContent);
+        jpegImage.setApp0(app0);
+        jpegImage.getAllTags().add(app0);
         currentPosition += app0Tag.getLength();
 
         while (currentPosition < unsignedByteContent.length) {
@@ -60,7 +63,9 @@ public class JPEGImageDecoder {
                     jpegImage.setSos(parseSOS(tag, unsignedByteContent, jpegImage));
                     break;
                 case JPEGImage.TAG_IMAGE_DATA:
-                    jpegImage.setImageData(parseImageData(tag, unsignedByteContent));
+                    ImageData imageData = parseImageData(tag, unsignedByteContent);
+                    jpegImage.setImageData(imageData);
+                    tag = imageData;
                     break;
                 case JPEGImage.TAG_EOI:
                     jpegImage.setEoi(tag);

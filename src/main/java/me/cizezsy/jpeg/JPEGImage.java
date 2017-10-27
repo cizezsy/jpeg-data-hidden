@@ -1,15 +1,13 @@
 package me.cizezsy.jpeg;
 
 
-import com.sun.javafx.image.impl.ByteRgb;
 import me.cizezsy.huffman.HuffmanTable;
-import org.apache.commons.lang3.ArrayUtils;
 
+import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 public class JPEGImage {
 
@@ -222,9 +220,11 @@ public class JPEGImage {
         }
 
         public byte[] write(JPEGImage jpegImage) {
-            Arrays.stream(Arrays.copyOfRange(jpegImage.getUnsignedByteData(), position, position + length))
-                    .boxed()
-                    .map(integer -> Byte.valueOf(String.valueOf(integer)));
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            for (int i : Arrays.copyOfRange(jpegImage.getUnsignedByteData(), position, position + length)) {
+                bos.write(((byte) i));
+            }
+            return bos.toByteArray();
         }
     }
 
@@ -448,9 +448,11 @@ public class JPEGImage {
 
         @Override
         public byte[] write(JPEGImage jpegImage) {
-            return ArrayUtils.toPrimitive((Byte[]) Arrays.stream(data)
-                    .mapToObj(value -> ((byte) value))
-                    .toArray());
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            for (int i : data) {
+                bos.write(((byte) i));
+            }
+            return bos.toByteArray();
         }
     }
 

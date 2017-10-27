@@ -6,13 +6,15 @@ import me.cizezsy.huffman.HuffmanTable;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.BitField;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.List;
 import java.util.Optional;
 
-public class JPEGDataHider {
+public class JPEGDataProcessor {
 
     ColorComponent yColorComponent;
     ColorComponent crColorComponent;
@@ -33,21 +35,100 @@ public class JPEGDataHider {
     private int cr;
     private int cb;
 
-    public JPEGDataHider(JPEGImage jpegImage) throws JPEGParseException {
+    public JPEGDataProcessor(JPEGImage jpegImage) throws JPEGParseException {
         this.jpegImage = jpegImage;
+        init(jpegImage);
+    }
+
+
+    public String reveal() {
+        int h0 = yColorComponent.getHorizontalSample();
+        int v0 = yColorComponent.getVerticalSample();
+        int maxMcuX = (jpegImage.getSof0().getWidth() + 8 * h0 - 1) / (8 * h0);
+        int maxMcuY = (jpegImage.getSof0().getHeight() + 8 * v0 - 1) / (8 * v0);
+        int numOfBit = 0;
+        int tempByte = 0;
+        byte[] result = new byte[0];
+
+        int[] imageData = jpegImage.getImageData().getData();
+        int position = 0;
+        end:
+        for (int i = 0; i < maxMcuX; i++) {
+            for (int j = 0; j < maxMcuY; j++) {
+                for (int unit = 0; unit < y + cr + cb; unit++) {
+                    int[][] matrix = new int[8][8];
+                    completedDataUnit:
+                    for (int x = 0; x < 8; x++) {
+                        for (int y = 0; y < 8; y++) {
+                            int nextPosition = position + 1;
+                            if (x == 0 && y == 0) {
+                                Optional<HuffmanTable.TreeNode> treeNode;
+                                while (!(treeNode = selectHuffmanTable(unit, HuffmanTable.DC)
+                                        .findTreeNode(bit2int(imageData, position, nextPosition), nextPosition - position)).isPresent()) {
+                                    nextPosition++;
+                                }
+                                int weight = treeNode.get().getWeight();
+                                position = nextPosition;
+                                nextPosition = position + weight;
+                                int value = bit2int(imageData, position, nextPosition);
+                                matrix[x][y] = decipher(value, nextPosition - position);
+                                position = nextPosition;
+                            } else {
+                                Optional<HuffmanTable.TreeNode> treeNode;
+                                while (!(treeNode = selectHuffmanTable(unit, HuffmanTable.AC)
+                                        .findTreeNode(bit2int(imageData, position, nextPosition), nextPosition - position)).isPresent()) {
+                                    nextPosition++;
+                                }
+                                int weight = treeNode.get().getWeight();
+                                if (weight == 0) {
+                                    break completedDataUnit;
+                                }
+                                int num = weight >> 4;
+
+                                y += num;
+                                x = x + y / 8;
+                                y = y % 8;
+
+                                if (y > 7 || x > 7)
+                                    break;
+
+                                int bitNum = weight & 0xf;
+                                position = nextPosition;
+                                nextPosition = position + bitNum;
+                                int value = bit2int(imageData, position, nextPosition);
+
+                                matrix[x][y] = decipher(value, nextPosition - position);
+
+                                if (matrix[x][y] != 0 && Math.abs(matrix[x][y]) != 1) {
+                                    int bit = getBit(imageData, nextPosition - 1);
+                                    tempByte = ((tempByte << 1) + bit);
+                                    numOfBit++;
+                                    if (numOfBit % 8 == 0 && numOfBit != 0) {
+                                        result = ArrayUtils.add(result, (byte) tempByte);
+                                        tempByte = 0;
+                                        if (result[0] == numOfBit)
+                                            break end;
+                                    }
+                                }
+                                position = nextPosition;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return new String(Arrays.copyOfRange(result, 1, result.length));
     }
 
 
     public void hide(String data) throws JPEGParseException {
-
-        byte length = (byte) data.length();
+        int length = data.length();
         byte[] stringData = data.getBytes();
         byte[] hideData = new byte[stringData.length + 1];
         System.arraycopy(data.getBytes(), 0, hideData, 1, stringData.length);
-        hideData[0] = length;
+        hideData[0] = (byte) (length * 8 + 8);
         Bits bits = new Bits(hideData);
 
-        init(jpegImage);
 
         int h0 = yColorComponent.getHorizontalSample();
         int v0 = yColorComponent.getVerticalSample();
@@ -101,11 +182,20 @@ public class JPEGDataHider {
                                 nextPosition = position + bitNum;
                                 int value = bit2int(imageData, position, nextPosition);
 
-                                int b = bits.get();
-                                if (b == -1) break end;
-                                writePosition(imageData, b, nextPosition - 1);
-
                                 matrix[x][y] = decipher(value, nextPosition - position);
+
+                                if (matrix[x][y] != 0 && Math.abs(matrix[x][y]) != 1) {
+                                    int b = bits.get();
+//                                    try {
+//                                        FileWriter fw = new FileWriter("/home/zsy/record", true);
+//                                        fw.write((nextPosition - 1) + " : " + (b) + "\n");
+//                                        fw.flush();
+//                                    } catch (IOException e) {
+//                                        e.printStackTrace();
+//                                    }
+                                    if (b == -1) break end;
+                                    writeBit(imageData, b, nextPosition - 1);
+                                }
                                 position = nextPosition;
                             }
                         }
@@ -114,7 +204,7 @@ public class JPEGDataHider {
             }
         }
         try {
-            new JPEGImageWriter().write(jpegImage, "C:\\Users\\Administrator\\Desktop\\test.jpg");
+            new JPEGImageWriter().write(jpegImage, "/home/zsy/test_out.jpg");
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -175,8 +265,17 @@ public class JPEGDataHider {
     }
 
 
-    private void writePosition(int[] imageData, int value, int position) {
-        imageData[position / 8] |= (value << (7 - position % 8));
+    private void writeBit(int[] imageData, int value, int position) {
+        if (value == 0) {
+            imageData[position / 8] &= (~(1 << (7 - position % 8)));
+        } else if (value == 1) {
+            imageData[position / 8] |= (1 << (7 - position % 8));
+        }
+    }
+
+
+    private int getBit(int[] imageData, int position) {
+        return (imageData[position / 8] >> (7 - position % 8)) & 0b01;
     }
 
 //    public void testAlg() {
