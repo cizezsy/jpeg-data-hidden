@@ -55,9 +55,13 @@ public class HuffmanTable {
         }
     }
 
-    public Optional<TreeNode> findTreeNode(int bitCode) {
+    public void setTreeNodes(List<TreeNode> treeNodes) {
+        this.treeNodes = treeNodes;
+    }
+
+    public Optional<TreeNode> findTreeNode(int bitCode, int length) {
         for (TreeNode node : treeNodes) {
-            if (node.bitCode == bitCode)
+            if (node.bitCode == bitCode && node.length == length)
                 return Optional.of(node);
         }
         return Optional.empty();
@@ -95,10 +99,19 @@ public class HuffmanTable {
         this.weights = weights;
     }
 
-    public class TreeNode {
+    public static class TreeNode {
         int length;
         int bitCode;
         int weight;
+
+        public TreeNode() {
+        }
+
+        public TreeNode(int length, int bitCode, int weight) {
+            this.length = length;
+            this.bitCode = bitCode;
+            this.weight = weight;
+        }
 
         public int getLength() {
             return length;

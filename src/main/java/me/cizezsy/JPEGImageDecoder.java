@@ -1,5 +1,6 @@
 package me.cizezsy;
 
+import com.sun.imageio.plugins.jpeg.JPEGImageReaderSpi;
 import me.cizezsy.exception.JPEGDecoderException;
 import me.cizezsy.huffman.HuffmanTable;
 import me.cizezsy.jpeg.ColorComponent;
@@ -7,6 +8,10 @@ import me.cizezsy.jpeg.JPEGImage;
 import me.cizezsy.jpeg.JPEGImage.*;
 import org.apache.commons.lang3.ArrayUtils;
 
+import javax.imageio.ImageReader;
+import javax.imageio.metadata.IIOMetadata;
+import javax.imageio.stream.FileImageInputStream;
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.util.Arrays;
 
@@ -72,6 +77,7 @@ public class JPEGImageDecoder {
             currentPosition += tag.getLength();
         }
         jpegImage.setUnsignedByteData(unsignedByteContent);
+
         return jpegImage;
     }
 
@@ -94,7 +100,12 @@ public class JPEGImageDecoder {
             if (result == null || result.length == 0)
                 throw new IOException("Read File Error: There is no content");
 
-            return decode(result);
+            JPEGImage jpegImage = decode(result);
+            ImageReader reader = new JPEGImageReaderSpi().createReaderInstance();
+            reader.setInput(new FileImageInputStream(file));
+            IIOMetadata metadata = reader.getImageMetadata(0);
+            BufferedImage image = reader.read(0);
+            return jpegImage;
         }
     }
 
@@ -177,21 +188,18 @@ public class JPEGImageDecoder {
 
             int type = data[start + 4 + i] >> 4 & 0b1111;
             int id = data[start + 4 + i] & 0b1111;
-            sumHuffmanTableLength -= 1;
 
             int[] eachNodeNum = Arrays.copyOfRange(data, start + i + 5, start + i + 21);
-            sumHuffmanTableLength -= 16;
 
             int tableLength = 0;
             for (int b : eachNodeNum) {
                 tableLength += b;
             }
-            i += tableLength;
-            sumHuffmanTableLength -= tableLength;
-
 
             int[] weights = Arrays.copyOfRange(data, start + i + 21, start + i + tableLength + 21);
             dht.getHuffmanTables().add(new HuffmanTable(id, type, eachNodeNum, weights));
+            i = i + 17 + tableLength;
+            sumHuffmanTableLength = sumHuffmanTableLength - 17 - tableLength;
         }
         return dht;
     }
