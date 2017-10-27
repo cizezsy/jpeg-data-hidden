@@ -13,7 +13,9 @@ import javax.imageio.metadata.IIOMetadata;
 import javax.imageio.stream.FileImageInputStream;
 import java.awt.image.BufferedImage;
 import java.io.*;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 public class JPEGImageDecoder {
 
@@ -160,10 +162,20 @@ public class JPEGImageDecoder {
     private static JPEGImage.DQT parseDQT(JPEGImage.Tag tag, int[] data) {
         JPEGImage.DQT dqt = new JPEGImage.DQT(tag);
         int start = tag.getPosition() + tag.getStuffing();
-        dqt.setId(data[start + 4] & 0b1111);
-        dqt.setPrecision((data[start + 4] >> 4) & 0b1111);
-        assert dqt.getPrecision() == 1 || dqt.getPrecision() == 0;
-        dqt.setItemLength(64 * (dqt.getPrecision() + 1));
+        List<DQTTable> tableList = new ArrayList<>();
+        DQTTable dqtTable = new DQTTable();
+        dqtTable.setId(data[start + 4] & 0b1111);
+        dqtTable.setPrecision((data[start + 4] >> 4) & 0b1111);
+        dqtTable.setItemLength(64 * (dqtTable.getPrecision() + 1));
+
+
+        for (int x = 0; x < 8; x++) {
+            for(int y = 0; y < 8; y++) {
+                dqtTable.getDqtTable()[x][y] = data[start + 5 + (x * 8 + y) * (dqtTable.getPrecision() + 1)];
+            }
+        }
+        tableList.add(dqtTable);
+        dqt.setDqtTables(tableList);
         return dqt;
     }
 

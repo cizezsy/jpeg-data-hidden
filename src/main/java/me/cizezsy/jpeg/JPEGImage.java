@@ -290,15 +290,36 @@ public class JPEGImage {
      * b)表项                        (64×(精度+1))                 例如8位精度的量化表 其表项长度为64×（0+1）=64字节
      */
     public static class DQT extends Tag {
-        private int id;
-        private int precision;
-        private int itemLength;
+      private List<DQTTable> dqtTables = new ArrayList<>();
 
         public DQT(Tag tag) {
             this.tag = tag.tag;
             this.position = tag.position;
             this.stuffing = tag.stuffing;
             this.length = tag.length;
+        }
+
+        public List<DQTTable> getDqtTables() {
+            return dqtTables;
+        }
+
+        public void setDqtTables(List<DQTTable> dqtTables) {
+            this.dqtTables = dqtTables;
+        }
+    }
+
+    public static class DQTTable {
+        int precision;
+        int id;
+        int itemLength;
+        int[][] dqtTable = new int[8][8];
+
+        public int getPrecision() {
+            return precision;
+        }
+
+        public void setPrecision(int precision) {
+            this.precision = precision;
         }
 
         public int getId() {
@@ -309,12 +330,12 @@ public class JPEGImage {
             this.id = id;
         }
 
-        public int getPrecision() {
-            return precision;
+        public int[][] getDqtTable() {
+            return dqtTable;
         }
 
-        public void setPrecision(int precision) {
-            this.precision = precision;
+        public void setDqtTable(int[][] dqtTable) {
+            this.dqtTable = dqtTable;
         }
 
         public int getItemLength() {

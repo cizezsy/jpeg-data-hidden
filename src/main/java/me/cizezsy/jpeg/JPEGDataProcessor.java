@@ -5,6 +5,8 @@ import me.cizezsy.exception.JPEGParseException;
 import me.cizezsy.huffman.HuffmanTable;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.BitField;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;
@@ -151,7 +153,7 @@ public class JPEGDataProcessor {
                                 while (!(treeNode = selectHuffmanTable(unit, HuffmanTable.DC)
                                         .findTreeNode(bit2int(imageData, position, nextPosition), nextPosition - position)).isPresent()) {
                                     nextPosition++;
-                                }
+                                }//30 5
                                 int weight = treeNode.get().getWeight();
                                 position = nextPosition;
                                 nextPosition = position + weight;
@@ -160,9 +162,11 @@ public class JPEGDataProcessor {
                                 position = nextPosition;
                             } else {
                                 Optional<HuffmanTable.TreeNode> treeNode;
+                                int head = bit2int(imageData, position, nextPosition);
                                 while (!(treeNode = selectHuffmanTable(unit, HuffmanTable.AC)
-                                        .findTreeNode(bit2int(imageData, position, nextPosition), nextPosition - position)).isPresent()) {
+                                        .findTreeNode(head, nextPosition - position)).isPresent()) {
                                     nextPosition++;
+                                    head = bit2int(imageData, position, nextPosition);
                                 }
                                 int weight = treeNode.get().getWeight();
                                 if (weight == 0) {
@@ -178,23 +182,38 @@ public class JPEGDataProcessor {
                                     break;
 
                                 int bitNum = weight & 0xf;
+                                if (head == 0xff) {
+                                    nextPosition += 8;
+                                }
                                 position = nextPosition;
                                 nextPosition = position + bitNum;
                                 int value = bit2int(imageData, position, nextPosition);
 
                                 matrix[x][y] = decipher(value, nextPosition - position);
+                                if (unit < 4) {
+                                    matrix[x][y] = jpegImage.getDqt().get(0).getDqtTables().get(0).getDqtTable()[x][y] * matrix[x][y];
+                                } else {
+                                    matrix[x][y] = jpegImage.getDqt().get(1).getDqtTables().get(0).getDqtTable()[x][y] * matrix[x][y];
+                                }
 
-                                if (matrix[x][y] != 0 && Math.abs(matrix[x][y]) != 1) {
+
+                                if (unit < 4 && (matrix[x][y] > 1 || matrix[x][y] < 1)) {
                                     int b = bits.get();
-//                                    try {
-//                                        FileWriter fw = new FileWriter("/home/zsy/record", true);
-//                                        fw.write((nextPosition - 1) + " : " + (b) + "\n");
-//                                        fw.flush();
-//                                    } catch (IOException e) {
-//                                        e.printStackTrace();
-//                                    }
                                     if (b == -1) break end;
-                                    writeBit(imageData, b, nextPosition - 1);
+//                                    writeBit(imageData, b, nextPosition - 1);
+                                    int origin = matrix[x][y];
+                                    if (b == 0) {
+                                        origin &= ~1;
+                                    } else {
+                                        origin |= 1;
+                                    }
+
+                                    origin = origin / jpegImage.getDqt().get(0).getDqtTables().get(0).getDqtTable()[x][y];
+
+
+                                    for (int t = 0; t < nextPosition - position; t++) {
+                                        writeBit(imageData, (origin >> (nextPosition - position - 1)) & 1, position + t);
+                                    }
                                 }
                                 position = nextPosition;
                             }
@@ -204,7 +223,7 @@ public class JPEGDataProcessor {
             }
         }
         try {
-            new JPEGImageWriter().write(jpegImage, "/home/zsy/test_out.jpg");
+            new JPEGImageWriter().write(jpegImage, "C:\\Users\\Administrator\\Desktop\\test_out.jpg");
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -264,6 +283,20 @@ public class JPEGDataProcessor {
         }
     }
 
+    private Pair<Integer, Integer> zigZag(int x, int y) {
+        int[] zig = {
+                0, 1, 8, 16, 9, 2, 3, 10,
+                17, 24, 32, 25, 18, 11, 4, 5,
+                12, 19, 26, 33, 40, 48, 41, 34,
+                27, 20, 13, 6, 7, 14, 21, 28,
+                35, 42, 49, 56, 57, 50, 43, 36,
+                29, 22, 15, 23, 30, 37, 44, 51,
+                58, 59, 52, 45, 38, 31, 39, 46,
+                53, 60, 61, 54, 47, 55, 62, 63,
+        };
+        int value = zig[x * 8 + y];
+        return new ImmutablePair<>(value / 8, value % 8);
+    }
 
     private void writeBit(int[] imageData, int value, int position) {
         if (value == 0) {
@@ -384,6 +417,11 @@ public class JPEGDataProcessor {
             return -(codeNum - 1) + value;
         else
             return value;
+    }
+
+    //TODO Completed that
+    public int unDecipher(int value, int length) {
+
     }
 
     public class Bits {
