@@ -107,9 +107,6 @@ public class BitMap {
                 if (v == 0) {
                     i += 8;
                     position += 8;
-                } else {
-                    i += 8;
-                    position += 8;
                 }
             }
         }

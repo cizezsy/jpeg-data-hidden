@@ -305,7 +305,7 @@ public class JPEGImageReader {
 
     private ImageMarker parseImage(BitMap s, Marker marker) throws BitIOException {
 
-        BitMap data = new BitMap("123456sd25234532453245324532453245324532453245324532453245324789".getBytes());
+        BitMap data = new BitMap("123456s24532453245324789".getBytes());
 
         ImageMarker imageMarker = new ImageMarker(marker);
         s.position(marker.getPosition() * 8);
