@@ -1,51 +1,43 @@
 package me.cizezsy.jpeg;
 
 public class ColorComponent {
-    private int colorId;
-    private int horizontalSample;
-    private int verticalSample;
-    private int qtId;
-    private int dcId;
+    private int id;
+    private int hs;
+    private int vs;
+    private int quantId;
     private int acId;
+    private int dcId;
 
-    public int getColorId() {
-        return colorId;
+    public int getId() {
+        return id;
     }
 
-    public void setColorId(int colorId) {
-        this.colorId = colorId;
+    public void setId(int id) {
+        this.id = id;
     }
 
-    public int getHorizontalSample() {
-        return horizontalSample;
+    public int getHs() {
+        return hs;
     }
 
-    public void setHorizontalSample(int horizontalSample) {
-        this.horizontalSample = horizontalSample;
+    public void setHs(int hs) {
+        this.hs = hs;
     }
 
-    public int getVerticalSample() {
-        return verticalSample;
+    public int getVs() {
+        return vs;
     }
 
-    public void setVerticalSample(int verticalSample) {
-        this.verticalSample = verticalSample;
+    public void setVs(int vs) {
+        this.vs = vs;
     }
 
-    public int getQtId() {
-        return qtId;
+    public int getQuantId() {
+        return quantId;
     }
 
-    public void setQtId(int qtId) {
-        this.qtId = qtId;
-    }
-
-    public int getDcId() {
-        return dcId;
-    }
-
-    public void setDcId(int dcId) {
-        this.dcId = dcId;
+    public void setQuantId(int quantId) {
+        this.quantId = quantId;
     }
 
     public int getAcId() {
@@ -55,5 +47,12 @@ public class ColorComponent {
     public void setAcId(int acId) {
         this.acId = acId;
     }
-}
 
+    public int getDcId() {
+        return dcId;
+    }
+
+    public void setDcId(int dcId) {
+        this.dcId = dcId;
+    }
+}
