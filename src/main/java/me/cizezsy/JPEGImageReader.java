@@ -1,11 +1,12 @@
 package me.cizezsy;
 
+import me.cizezsy.bit.BitInputStream;
 import me.cizezsy.exception.BitIOException;
 import me.cizezsy.exception.JPEGParseException;
 import me.cizezsy.huffman.HuffmanTable;
-import me.cizezsy.bit.BitInputStream;
 import me.cizezsy.jpeg.ColorComponent;
 import me.cizezsy.jpeg.JPEG;
+import me.cizezsy.jpeg.JPEGImage;
 import me.cizezsy.jpeg.QuantTable;
 import me.cizezsy.jpeg.marker.*;
 
@@ -19,6 +20,16 @@ public class JPEGImageReader {
     private List<ColorComponent> colorComponents = new ArrayList<>();
     private List<QuantTable> quantTables = new ArrayList<>();
     private List<HuffmanTable> huffmanTables = new ArrayList<>();
+    private JPEGImage jpegImage;
+
+    private ColorComponent yC;
+    private ColorComponent crC;
+    private ColorComponent cbC;
+
+    private HuffmanTable yAcHuffmanTable;
+    private HuffmanTable yDcHuffmanTable;
+    private HuffmanTable crCbAcHuffmanTable;
+    private HuffmanTable crCbDcHuffmanTable;
 
     private final static int[] ZIG_ZAG = {
             0, 1, 8, 16, 9, 2, 3, 10,
@@ -35,9 +46,9 @@ public class JPEGImageReader {
         this.bitInputStream = new BitInputStream(inputStream);
     }
 
-    public JPEG readImage() throws JPEGParseException {
+    public JPEGImage readImage() throws JPEGParseException {
         List<Marker> markers = new ArrayList<>(20);
-        JPEG jpegImage = new JPEG();
+        jpegImage = new JPEGImage();
 
         try {
             Marker soi = readMarker(bitInputStream);
@@ -51,10 +62,13 @@ public class JPEGImageReader {
 
         try {
             Marker app0 = readMarker(bitInputStream);
+            int origin = bitInputStream.position();
             app0 = parseAPP0(bitInputStream, app0);
             if (app0.getTag() != JPEG.APP0) {
                 throw new JPEGParseException("Not A legal APP0");
             }
+            jpegImage.setApp0Marker((APP0Marker) app0);
+            bitInputStream.position(origin);
         } catch (BitIOException | JPEGParseException e) {
             throw new JPEGParseException(e);
         }
@@ -66,22 +80,31 @@ public class JPEGImageReader {
                 switch (marker.getTag()) {
                     case JPEG.DQT:
                         marker = parseDQT(bitInputStream, marker);
+                        jpegImage.setDqtMarker((DQTMarker) marker);
                         break;
                     case JPEG.SOF0:
                         marker = parseSOF0(bitInputStream, marker);
+                        jpegImage.setSof0Marker((SOF0Marker) marker);
                         break;
                     case JPEG.DHT:
                         marker = parseDHT(bitInputStream, marker);
+                        jpegImage.setDhtMarker((DHTMarker) marker);
                         break;
                     case JPEG.DRI:
                         marker = parseDRI(bitInputStream, marker);
+                        jpegImage.setDriMarker((DRIMarker) marker);
                         break;
                     case JPEG.SOS:
                         marker = parseSOS(bitInputStream, marker);
+                        jpegImage.setSosMarker((SOSMarker) marker);
                         break;
                     case JPEG.IMAGE:
                         marker = parseImage(bitInputStream, marker);
                         break;
+                    default:
+                        markers.add(marker);
+                        if (marker.getTag() == JPEG.EOI)
+                            break;
                 }
                 bitInputStream.position(origin);
                 markers.add(marker);
@@ -163,7 +186,7 @@ public class JPEGImageReader {
         DQTMarker dqtMarker = new DQTMarker(marker);
         s.position(dqtMarker.getPosition() * 8);
 
-        s.skipBytes(2);
+        s.skipBytes(4);
         while (s.position() != (dqtMarker.getLength() + dqtMarker.getPosition()) * 8) {
             int precision = s.readBits(4);
             int id = s.readBits(4);
@@ -280,9 +303,74 @@ public class JPEGImageReader {
         return sosMarker;
     }
 
-    private ImageMarker parseImage(BitInputStream s, Marker marker) {
+    private ImageMarker parseImage(BitInputStream s, Marker marker) throws BitIOException {
         ImageMarker imageMarker = new ImageMarker(marker);
+        s.position(marker.getPosition() * 8);
+        int width = jpegImage.getSof0Marker().getWidth();
+        int height = jpegImage.getSof0Marker().getHeight();
+
+        initProperties();
+
+        int hsY = yC.getHs();
+        int vsY = yC.getVs();
+
+        int mcuX = (width + hsY * 8 - 1) / (hsY * 8);
+        int mcuY = (height + vsY * 8 - 1) / (vsY * 8);
+
+        int prevDc = 0;
+        for (int x = 0; x < mcuX; x++) {
+            for (int y = 0; y < mcuY; y++) {
+
+                int[][] block = new int[8][8];
+                for (int i = 0; i < 8; i++) {
+                    for (int j = 0; j < 8; j++) {
+                        if (i == 0 && j == 0) {
+                            int codeLength = 1;
+                        }
+                    }
+                }
+
+            }
+        }
         return imageMarker;
     }
 
-}
+    private void initProperties() {
+        yC = colorComponents.get(0);
+        crC = colorComponents.get(1);
+        cbC = colorComponents.get(2);
+
+        for (HuffmanTable huffmanTable : huffmanTables) {
+            if (huffmanTable.getType() == HuffmanTable.DC) {
+                if (huffmanTable.getId() == yC.getDcId()) {
+                    yDcHuffmanTable = huffmanTable;
+                } else {
+                    crCbDcHuffmanTable = huffmanTable;
+                }
+            } else {
+                if (huffmanTable.getId() == yC.getDcId()) {
+                    yAcHuffmanTable = huffmanTable;
+                } else {
+                    crCbAcHuffmanTable = huffmanTable;
+                }
+            }
+        }
+    }
+
+
+    private HuffmanTable selectHt(int i, int type) {
+        if (type == HuffmanTable.DC) {
+            if (i < yC.getHs() * yC.getVs()) {
+                return yDcHuffmanTable;
+            } else {
+                return crCbDcHuffmanTable;
+            }
+        } else {
+            if (i < yC.getHs() * yC.getVs()) {
+                return crCbDcHuffmanTable;
+            } else {
+                return crCbAcHuffmanTable;
+            }
+        }
+    }
+}`

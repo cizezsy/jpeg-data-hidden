@@ -45,8 +45,9 @@ public class BitInputStream {
         }
 
         if (position % 8 == 0) {
+            int result = 0xff & bits[position / 8];
             position += 8;
-            return 0xff & bits[position / 8];
+            return result;
         }
         return readBits(8);
     }
@@ -64,7 +65,11 @@ public class BitInputStream {
 
     public int readBits(int n) throws BitIOException {
         int value = peekBits(n);
-        skipBits(n);
+        if (value == -1) {
+            position = length;
+            return value;
+        } else
+            skipBits(n);
         return value;
     }
 
@@ -82,8 +87,8 @@ public class BitInputStream {
     public int peekBits(int n) throws BitIOException {
         if (n > 32 || n < 0)
             throw new BitIOException("Not Support Operation, the bit number you want to read shouldn't large than 32 or less than zero");
-        if (position + n >= length) {
-            if (position == length)
+        if (position + n > length) {
+            if (position >= length)
                 return -1;
             else
                 return peekBits(length - position);
