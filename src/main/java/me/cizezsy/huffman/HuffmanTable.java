@@ -99,6 +99,10 @@ public class HuffmanTable {
         this.weights = weights;
     }
 
+    public List<TreeNode> getTreeNodes() {
+        return treeNodes;
+    }
+
     public static class TreeNode {
         int length;
         int bitCode;

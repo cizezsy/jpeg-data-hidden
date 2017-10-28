@@ -7,18 +7,18 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-public class BitInputStream {
+public class BitMap {
     private byte[] bits;
     private int position;
     private int length;
 
-    public BitInputStream(byte[] bits) {
+    public BitMap(byte[] bits) {
         this.bits = bits;
         this.length = bits.length * 8;
         this.position = 0;
     }
 
-    public BitInputStream(InputStream inputStream) throws BitIOException {
+    public BitMap(InputStream inputStream) throws BitIOException {
         try (BufferedInputStream bis = new BufferedInputStream(inputStream);
              ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[1024];
@@ -93,13 +93,34 @@ public class BitInputStream {
             else
                 return peekBits(length - position);
         }
+
         int value = 0;
         for (int i = position; i < position + n; i++) {
             int b = BitUtils.getBit(bits[i / 8], i % 8);
             value <<= 1;
             value += b;
+            if (value == 0xff & position + n - i == 8) {
+                int origin = position;
+                position = i;
+                int v = peekBits(8);
+                position = origin;
+                if (v == 0) {
+                    i += 8;
+                    position += 8;
+                } else {
+                    i += 8;
+                    position += 8;
+                }
+            }
         }
         return value;
+    }
+
+
+    public void write(int position, int value) throws BitIOException {
+        byte raw = bits[position / 8];
+        raw = BitUtils.writeBit(raw, position % 8, value);
+        bits[position / 8] = raw;
     }
 
     public void position(int position) throws BitIOException {
@@ -115,5 +136,9 @@ public class BitInputStream {
 
     public int length() {
         return length;
+    }
+
+    public byte[] getBits() {
+        return bits;
     }
 }
