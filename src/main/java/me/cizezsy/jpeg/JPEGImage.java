@@ -10,7 +10,16 @@ public class JPEGImage {
     private DHTMarker dhtMarker;
     private DRIMarker driMarker;
     private SOSMarker sosMarker;
+    private byte[] data;
 
+
+    public byte[] getData() {
+        return data;
+    }
+
+    public void setData(byte[] data) {
+        this.data = data;
+    }
 
     public APP0Marker getApp0Marker() {
         return app0Marker;

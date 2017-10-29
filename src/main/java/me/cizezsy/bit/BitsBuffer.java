@@ -2,13 +2,13 @@ package me.cizezsy.bit;
 
 import me.cizezsy.exception.BitIOException;
 
-public class ImageDataBuffer {
+public class BitsBuffer {
     private BitMap bitMap;
     private int buffer;
     private int bufferLength;
     private int position;
 
-    public ImageDataBuffer(BitMap bitMap) {
+    public BitsBuffer(BitMap bitMap) {
         this.bitMap = bitMap;
         this.position = bitMap.position();
         this.buffer = 0;
