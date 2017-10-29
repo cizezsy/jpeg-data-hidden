@@ -2,6 +2,9 @@ package me.cizezsy;
 
 import me.cizezsy.bit.BitMap;
 import me.cizezsy.bit.BitsBuffer;
+import me.cizezsy.data.LSBDataAction;
+import me.cizezsy.data.LSBDataProducer;
+import me.cizezsy.data.LSBDataReceiver;
 import me.cizezsy.exception.BitIOException;
 import me.cizezsy.exception.JPEGParseException;
 import me.cizezsy.huffman.HuffmanTable;
@@ -11,8 +14,6 @@ import me.cizezsy.jpeg.JPEGImage;
 import me.cizezsy.jpeg.QuantTable;
 import me.cizezsy.jpeg.marker.*;
 
-import java.io.FileOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,7 +21,8 @@ import java.util.Optional;
 
 public class JPEGImageReader {
 
-    private BitMap bitMap;
+    private final LSBDataAction lsbDataAction;
+    private final BitMap bitMap;
     private List<ColorComponent> colorComponents = new ArrayList<>();
     private List<QuantTable> quantTables = new ArrayList<>();
     private List<HuffmanTable> huffmanTables = new ArrayList<>();
@@ -46,8 +48,9 @@ public class JPEGImageReader {
             53, 60, 61, 54, 47, 55, 62, 63
     };
 
-    public JPEGImageReader(InputStream inputStream) throws BitIOException {
+    public JPEGImageReader(InputStream inputStream, LSBDataAction lsbDataAction) throws BitIOException {
         this.bitMap = new BitMap(inputStream);
+        this.lsbDataAction = lsbDataAction;
     }
 
     public JPEGImage readImage() throws JPEGParseException, BitIOException {
@@ -103,6 +106,7 @@ public class JPEGImageReader {
                     break;
                 case JPEG.IMAGE:
                     marker = parseImage(bitMap, marker);
+                    jpegImage.setData(((ImageMarker) marker).getData());
                     break;
                 default:
                     markers.add(marker);
@@ -306,8 +310,6 @@ public class JPEGImageReader {
 
     private ImageMarker parseImage(BitMap s, Marker marker) throws BitIOException {
 
-        BitMap data = new BitMap("Only support YCrCbOnly support YCrCbOnly support Only support YCrCbOnly support YCrCbOnly support YCrCbOnly support Only support YCrCbOnly support YCrCbOnly support YCrCbOnly support Only support YCrCbOnly support YCrCbOnly support YCrCbOnly support Only support YCrCbOnly support YCrCbOnly support YCrCbOnly support Only support YCrCbOnly support YCrCbOnly support YCrCbOnly support Only support YCrCbOnly support YCrCbOnly support YCrCbOnly support Only support YCrCbOnly support YCrCbOnly support YCrCbOnly support Only support YCrCbOnly support YCrCbOnly support YCrCbOnly support Only support YCrCbOnly support YCrCbOnly support YCrCbOnly support Only support YCrCbOnly support YCrCbOnly support YCrCbOnly support Only support YCrCbOnly support YCrCbOnly support YCrCbOnly support Only support YCrCbOnly support YCrCbOnly support YCrCbOnly support Only support YCrCbOnly support YCrCbOnly support YCrCbOnly support Only support YCrCbOnly support YCrCbOnly support YCrCbOnly support Only support YCrCbOnly support YCrCbOnly support YCrCbOnly support Only support YCrCbOnly support YCrCbOnly support YCrCbOnly support Only support YCrCbOnly support YCrCbOnly support YCrCbOnly support Only support YCrCbOnly support YCrCbOnly support YCrCbOnly support Only support YCrCbOnly support YCrCbOnly support YCrCbOnly support Only support YCrCbOnly support YCrCbOnly support YCrCbOnly support Only support YCrCbOnly support YCrCbOnly support YCrCbOnly support Only support YCrCbOnly support YCrCbOnly support YCrCbOnly support Only support YCrCb".getBytes());
-
         ImageMarker imageMarker = new ImageMarker(marker);
         s.position(marker.getPosition() * 8);
         BitsBuffer bitsBuffer = new BitsBuffer(s);
@@ -326,7 +328,7 @@ public class JPEGImageReader {
         for (int x = 0; x < mcuX; x++) {
             for (int y = 0; y < mcuY; y++) {
                 for (int unit = 0; unit < hsY * vsY + 2; unit++) {
-                    int[][] block = readBlock(bitsBuffer, prevDc, unit, data);
+                    int[][] block = readBlock(bitsBuffer, prevDc, unit, lsbDataAction);
                     //when i write decoder, i'll process block in that file
                     processBlock(block);
                 }
@@ -337,12 +339,13 @@ public class JPEGImageReader {
     }
 
     private void processBlock(int[][] block) {
-        System.out.println(block.length);
+        //System.out.println(block.length);
     }
 
-    private int[][] readBlock(BitsBuffer bitsBuffer, int[] prevDc, int unit, BitMap data) throws BitIOException {
+    private int[][] readBlock(BitsBuffer bitsBuffer, int[] prevDc, int unit, LSBDataAction lsbDataAction) throws BitIOException {
         QuantTable quantTable = selectQuantTable(unit);
         int[][] block = new int[8][8];
+
         for (int i = 0; i < 8; i++) {
             for (int j = 0; j < 8; j++) {
                 int codeLength = 1;
@@ -400,8 +403,10 @@ public class JPEGImageReader {
                     bitsBuffer.skipBits(codeLength);
                     int value = bitsBuffer.readBits(bitNum);
 
-                    if (unit < 4 && (value < -1 || value > 1) && !isDamageFF00(bitsBuffer)) {
-                        hideData(data, bitsBuffer);
+
+                    if (unit < 4 && bitNum > 2 && !isDamageFF00(bitsBuffer)) {
+                        dataAction(lsbDataAction, bitsBuffer, value);
+
                     }
                     value = decipher(value, bitNum);
                     value = value * quantTable.getQuant()[i][j];
@@ -413,16 +418,30 @@ public class JPEGImageReader {
         return block;
     }
 
-    private boolean hideData(BitMap data, BitsBuffer bitsBuffer) throws BitIOException {
-        int in = data.readBits(1);
-        if (in == -1)
-            return false;
-        else if (isGenerateFF(bitsBuffer, in)) {
-            data.position(data.position() - 1);
+    private boolean dataAction(LSBDataAction dataAction, BitsBuffer bitsBuffer, int value) throws BitIOException {
+        if (dataAction instanceof LSBDataProducer) {
+            LSBDataProducer producer = (LSBDataProducer) dataAction;
+            int in = producer.get();
+            if (in == -1)
+                return false;
+            else if (isGenerateFF(bitsBuffer, in)) {
+                producer.position(producer.position() - 1);
+            } else {
+                System.out.print(String.format("%d ", in));
+                bitsBuffer.getBitMap().write(bitsBuffer.getPosition() - 1, in);
+            }
+            return true;
+        } else if (dataAction instanceof LSBDataReceiver) {
+            LSBDataReceiver receiver = (LSBDataReceiver) dataAction;
+            int out = bitsBuffer.getBitMap().get(bitsBuffer.getPosition() - 1);
+            if (receiver.canWrite()) {
+                System.out.print(String.format("%d ", out));
+                receiver.write(out);
+            }
+            return true;
         } else {
-            bitsBuffer.getBitMap().write(bitsBuffer.getPosition() - 1, in);
+            return true;
         }
-        return true;
     }
 
     private void initProperties() {
@@ -477,6 +496,25 @@ public class JPEGImageReader {
             }
             bitMap.position(bitMap.position() + 1);
         }
+        bitMap.position(origin);
+        return false;
+    }
+
+    private boolean isHaveFF(BitsBuffer buffer) throws BitIOException {
+        int range = buffer.getPosition() - 8;
+
+        BitMap bitMap = buffer.getBitMap();
+        int origin = bitMap.position();
+        bitMap.position(range);
+
+        for (int i = 0; i < 8; i++) {
+            if (bitMap.peekBits(8) == 0xff) {
+                return true;
+            } else {
+                bitMap.position(bitMap.position() + 1);
+            }
+        }
+
         bitMap.position(origin);
         return false;
     }

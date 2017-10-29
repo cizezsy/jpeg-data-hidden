@@ -103,12 +103,20 @@ public class BitMap {
         return value;
     }
 
+    public int get(int position) throws BitIOException {
+        int origin = this.position;
+        this.position = position;
+        int value = peekBits(1);
+        this.position = origin;
+        return value;
+    }
 
     public void write(int position, int value) throws BitIOException {
         byte raw = bits[position / 8];
         raw = BitUtils.writeBit(raw, position % 8, value);
         bits[position / 8] = raw;
     }
+
 
     public void position(int position) throws BitIOException {
         if (position > length) {
