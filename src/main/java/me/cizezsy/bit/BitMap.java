@@ -99,16 +99,6 @@ public class BitMap {
             int b = BitUtils.getBit(bits[i / 8], i % 8);
             value <<= 1;
             value += b;
-            if (value == 0xff & position + n - i == 8) {
-                int origin = position;
-                position = i;
-                int v = peekBits(8);
-                position = origin;
-                if (v == 0) {
-                    i += 8;
-                    position += 8;
-                }
-            }
         }
         return value;
     }

@@ -1,6 +1,7 @@
 package me.cizezsy;
 
 import me.cizezsy.bit.BitMap;
+import me.cizezsy.bit.ImageDataBuffer;
 import me.cizezsy.exception.BitIOException;
 import me.cizezsy.exception.JPEGParseException;
 import me.cizezsy.huffman.HuffmanTable;
@@ -305,10 +306,12 @@ public class JPEGImageReader {
 
     private ImageMarker parseImage(BitMap s, Marker marker) throws BitIOException {
 
-        BitMap data = new BitMap("123456s24532453245324789".getBytes());
+        BitMap data = new BitMap("123412asdfs4563456ad324789112323412asdfs4563456ad3247891123412asdfs4563456ad324789147891123412asdfs4563456ad123412asdfs4563456ad324789112323412asdfs4563456ad3247891123412asdfs4563456ad324789147891123412asdfs4563456ad123412asdfs4563456ad324789112323412asdfs4563456ad3247891123412asdfs4563456ad324789147891123412asdfs4563456ad123412asdfs4563456ad324789112323412asdfs4563456ad3247891123412asdfs4563456ad324789147891123412asdfs4563456ad123412asdfs4563456ad324789112323412asdfs4563456ad3247891123412asdfs4563456ad324789147891123412asdfs4563456ad123412asdfs4563456ad324789112323412asdfs4563456ad3247891123412asdfs4563456ad324789147891123412asdfs4563456ad123412asdfs4563456ad324789112323412asdfs4563456ad3247891123412asdfs4563456ad324789147891123412asdfs4563456ad123412asdfs4563456ad324789112323412asdfs4563456ad3247891123412asdfs4563456ad324789147891123412asdfs4563456ad123412asdfs4563456ad324789112323412asdfs4563456ad3247891123412asdfs4563456ad324789147891123412asdfs4563456ad123412asdfs4563456ad324789112323412asdfs4563456ad3247891123412asdfs4563456ad324789147891123412asdfs4563456ad123412asdfs4563456ad324789112323412asdfs4563456ad3247891123412asdfs4563456ad324789147891123412asdfs4563456ad123412asdfs4563456ad324789112323412asdfs4563456ad3247891123412asdfs4563456ad324789147891123412asdfs4563456ad123412asdfs4563456ad324789112323412asdfs4563456ad3247891123412asdfs4563456ad324789147891123412asdfs4563456ad123412asdfs4563456ad324789112323412asdfs4563456ad3247891123412asdfs4563456ad324789147891123412asdfs4563456ad".getBytes());
+
 
         ImageMarker imageMarker = new ImageMarker(marker);
         s.position(marker.getPosition() * 8);
+        ImageDataBuffer imageDataBuffer = new ImageDataBuffer(s);
         int width = jpegImage.getSof0Marker().getWidth();
         int height = jpegImage.getSof0Marker().getHeight();
 
@@ -333,80 +336,81 @@ public class JPEGImageReader {
                     for (int i = 0; i < 8; i++) {
                         for (int j = 0; j < 8; j++) {
                             int codeLength = 1;
+                            HuffmanTable huffmanTable;
                             Optional<HuffmanTable.TreeNode> treeNodeOptional;
                             if (i == 0 && j == 0) {
+                                huffmanTable = selectHt(unit, HuffmanTable.DC);
                                 while (!(treeNodeOptional =
-                                        selectHt(unit, HuffmanTable.DC).findTreeNode(s.peekBits(codeLength), codeLength))
+                                        huffmanTable.findTreeNode(imageDataBuffer.peekBits(codeLength), codeLength))
                                         .isPresent()) {
                                     codeLength++;
                                 }
-                                s.skipBits(codeLength);
+                                imageDataBuffer.skipBits(codeLength);
 
                                 HuffmanTable.TreeNode treeNode = treeNodeOptional.get();
                                 int weight = treeNode.getWeight();
 
-                                int value = s.readBits(weight);
-                                if (value == 0xff && weight == 8) {
-                                    int next = s.readBits(8);
-                                    if (next != 0) {
-                                        value = next;
-                                    }
-                                }
-                                value = decipher(value, weight);
-                                int prev = prevDc[unit < 4 ? 0 : (unit == 4 ? 1 : 2)];
-                                //   value = value * quantTable.getQuant()[i][j] + prev;
-                                value += prev;
-                                prevDc[unit < 4 ? 0 : (unit == 4 ? 1 : 2)] = value;
+                                if (weight > 0) {
+                                    int value = imageDataBuffer.readBits(weight);
 
-                                block[i][j] = value;
+                                    value = decipher(value, weight);
+                                    int prev = prevDc[unit < 4 ? 0 : (unit == 4 ? 1 : 2)];
+                                    //value = value * quantTable.getQuant()[i][j] + prev;
+                                    value += prev;
+                                    prevDc[unit < 4 ? 0 : (unit == 4 ? 1 : 2)] = value;
+                                }
+                                block[i][j] = prevDc[unit < 4 ? 0 : (unit == 4 ? 1 : 2)];
 
                             } else {
-                                int origin = s.position();
+                                //   int origin = s.position();
+                                huffmanTable = selectHt(unit, HuffmanTable.AC);
                                 while (!(treeNodeOptional =
-                                        selectHt(unit, HuffmanTable.AC).findTreeNode(s.peekBits(codeLength), codeLength))
+                                        huffmanTable.findTreeNode(imageDataBuffer.peekBits(codeLength), codeLength))
                                         .isPresent()) {
                                     codeLength++;
                                 }
-                                s.skipBits(codeLength);
-
                                 HuffmanTable.TreeNode treeNode = treeNodeOptional.get();
                                 int weight = treeNode.getWeight();
 
-                                if (weight == 0) break block;
+                                if (weight == 0) {
+                                    imageDataBuffer.skipBits(codeLength);
+                                    break block;
+                                }
 
                                 int zeroNum = (weight >> 4) & 0xf;
-                                int bitNum = weight & 0xf;
-
-                                int value = s.readBits(bitNum);
-                                if (value == 0xff && bitNum == 8) {
-                                    int next = s.readBits(8);
-                                    if (next != 0) {
-                                        value = next;
-                                    }
-                                }
-
-
-                                if (unit == 1 && (value < -1 || value > 1)) {
-                                    int in = data.readBits(1);
-                                    if (in == -1)
-                                        break end;
-                                    else
-                                        s.write(s.position() - 1, data.readBits(1));
-                                }
-                                value = decipher(value, bitNum);
 
                                 j += zeroNum;
                                 i += j / 8;
                                 j = j % 8;
                                 if (i > 7) {
-                                    s.position(origin);
                                     break;
+                                }
+
+                                imageDataBuffer.skipBits(codeLength);
+
+                                int bitNum = weight & 0xf;
+
+                                int value = imageDataBuffer.readBits(bitNum);
+                                value = decipher(value, bitNum);
+                                value = value * quantTable.getQuant()[i][j];
+
+                                if (unit < 2 && (value < -1 || value > 1) && !isDamageFF00(imageDataBuffer)) {
+                                    int in = data.readBits(1);
+                                    if (in == -1)
+                                        break end;
+                                    else if (isGenerateFF(imageDataBuffer, in)) {
+                                        data.position(data.position() - 1);
+                                    } else {
+                                        s.write(imageDataBuffer.getPosition() - 1, in);
+                                    }
+
                                 }
 
                                 block[i][j] = value;
                             }
                         }
                     }
+                    int t = block.length;
                 }
             }
         }
@@ -458,6 +462,51 @@ public class JPEGImageReader {
         }
     }
 
+    private boolean isDamageFF00(ImageDataBuffer buffer) throws BitIOException {
+        int range = buffer.getPosition() - 16;
+
+        BitMap bitMap = buffer.getBitMap();
+        int origin = bitMap.position();
+        bitMap.position(range);
+        for (int i = 0; i < 16; i++) {
+            if (bitMap.peekBits(16) == 0xff00) {
+                bitMap.position(origin);
+                return true;
+            }
+            bitMap.position(bitMap.position() + 1);
+        }
+        bitMap.position(origin);
+        return false;
+    }
+
+    private boolean isGenerateFF(ImageDataBuffer buffer, int value) throws BitIOException {
+        int there = buffer.getPosition() - 1;
+        int range = buffer.getPosition() - 8;
+
+        BitMap bitMap = buffer.getBitMap();
+        int origin = bitMap.position();
+        bitMap.position(there);
+        int originValue = bitMap.peekBits(1);
+        bitMap.position(range);
+
+        bitMap.write(there, value);
+        for (int i = 0; i < 8; i++) {
+            if (bitMap.peekBits(8) == 0xff) {
+                bitMap.write(there, originValue);
+                if (bitMap.peekBits(8) != 0xff) {
+                    bitMap.position(origin);
+                    return true;
+                } else {
+                    bitMap.write(there, value);
+                }
+            }
+            bitMap.position(bitMap.position() + 1);
+        }
+        bitMap.write(there, originValue);
+        bitMap.position(origin);
+        return false;
+    }
+
     private QuantTable selectQuantTable(int i) {
         if (i < yC.getHs() * yC.getVs()) {
             return quantTables.get(0);
@@ -466,7 +515,7 @@ public class JPEGImageReader {
         }
     }
 
-    public int decipher(int value, int length) {
+    private int decipher(int value, int length) {
         if (length == 0) return 0;
         int codeNum = (int) Math.pow(2, length);
         if (value < codeNum / 2)
