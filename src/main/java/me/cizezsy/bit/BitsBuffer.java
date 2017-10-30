@@ -76,4 +76,8 @@ public class BitsBuffer {
     public int getPosition() {
         return position;
     }
+
+    public int getBufferLength() {
+        return bufferLength;
+    }
 }

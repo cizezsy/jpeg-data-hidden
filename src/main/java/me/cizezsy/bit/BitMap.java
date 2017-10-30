@@ -1,6 +1,7 @@
 package me.cizezsy.bit;
 
 import me.cizezsy.exception.BitIOException;
+import org.apache.commons.lang3.ArrayUtils;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;

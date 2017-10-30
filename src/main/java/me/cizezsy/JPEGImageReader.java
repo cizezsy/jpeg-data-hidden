@@ -1,6 +1,7 @@
 package me.cizezsy;
 
 import me.cizezsy.bit.BitMap;
+import me.cizezsy.bit.BitPool;
 import me.cizezsy.bit.BitsBuffer;
 import me.cizezsy.data.LSBDataAction;
 import me.cizezsy.data.LSBDataProducer;
@@ -47,6 +48,7 @@ public class JPEGImageReader {
             58, 59, 52, 45, 38, 31, 39, 46,
             53, 60, 61, 54, 47, 55, 62, 63
     };
+    private final BitPool bitPool = new BitPool();
 
     public JPEGImageReader(InputStream inputStream, LSBDataAction lsbDataAction) throws BitIOException {
         this.bitMap = new BitMap(inputStream);
@@ -63,6 +65,7 @@ public class JPEGImageReader {
                 throw new JPEGParseException("Not A legal SOI");
             }
             markers.add(soi);
+            bitPool.writeInt16(soi.getTag(), true);
         } catch (BitIOException | JPEGParseException e) {
             throw new JPEGParseException(e);
         }
@@ -76,6 +79,7 @@ public class JPEGImageReader {
             }
             jpegImage.setApp0Marker((APP0Marker) app0);
             bitMap.position(origin);
+            writeMarker(bitPool, bitMap, app0);
         } catch (BitIOException | JPEGParseException e) {
             throw new JPEGParseException(e);
         }
@@ -87,22 +91,27 @@ public class JPEGImageReader {
                 case JPEG.DQT:
                     marker = parseDQT(bitMap, marker);
                     jpegImage.setDqtMarker((DQTMarker) marker);
+                    writeMarker(bitPool, bitMap, marker);
                     break;
                 case JPEG.SOF0:
                     marker = parseSOF0(bitMap, marker);
                     jpegImage.setSof0Marker((SOF0Marker) marker);
+                    writeMarker(bitPool, bitMap, marker);
                     break;
                 case JPEG.DHT:
                     marker = parseDHT(bitMap, marker);
                     jpegImage.setDhtMarker((DHTMarker) marker);
+                    writeMarker(bitPool, bitMap, marker);
                     break;
                 case JPEG.DRI:
                     marker = parseDRI(bitMap, marker);
                     jpegImage.setDriMarker((DRIMarker) marker);
+                    writeMarker(bitPool, bitMap, marker);
                     break;
                 case JPEG.SOS:
                     marker = parseSOS(bitMap, marker);
                     jpegImage.setSosMarker((SOSMarker) marker);
+                    writeMarker(bitPool, bitMap, marker);
                     break;
                 case JPEG.IMAGE:
                     marker = parseImage(bitMap, marker);
@@ -110,14 +119,30 @@ public class JPEGImageReader {
                     break;
                 default:
                     markers.add(marker);
-                    if (marker.getTag() == JPEG.EOI)
+                    if (marker.getTag() == JPEG.EOI) {
+                        bitPool.writeInt16(JPEG.EOI, true);
                         break;
+                    } else {
+                        marker = parseImage(bitMap, marker);
+                    }
             }
             bitMap.position(origin);
             markers.add(marker);
-
         }
+        jpegImage.setData(bitPool.toByteArray());
         return jpegImage;
+    }
+
+    private void writeMarker(BitPool bitPool, BitMap bitMap, Marker marker) throws BitIOException {
+        int position = marker.getPosition() * 8;
+        int origin = bitMap.position();
+        bitMap.position(position);
+
+        int length = marker.getLength();
+        for (int i = 0; i < length; i++) {
+            bitPool.writeInt8(bitMap.readInt8(), true);
+        }
+        bitMap.position(origin);
     }
 
     //There has some problem, I have assert any maker except SOI and EOI and IMAGE have length tag in third byte
@@ -328,22 +353,20 @@ public class JPEGImageReader {
         for (int x = 0; x < mcuX; x++) {
             for (int y = 0; y < mcuY; y++) {
                 for (int unit = 0; unit < hsY * vsY + 2; unit++) {
-                    int[][] block = readBlock(bitsBuffer, prevDc, unit, lsbDataAction);
-                    //when i write decoder, i'll process block in that file
-                    processBlock(block);
+                    int[][] block = readBlock(bitsBuffer, prevDc, unit, lsbDataAction, bitPool);
+                    //when i writeBit decoder, i'll process block in that file
+                    //processBlock(block);
                 }
             }
         }
+        bitPool.writeBits(bitsBuffer.peekBits(bitsBuffer.getBufferLength()), bitsBuffer.getBufferLength());
         imageMarker.setData(bitsBuffer.getBitMap().getBits());
         return imageMarker;
     }
 
-    private void processBlock(int[][] block) {
-        //System.out.println(block.length);
-    }
-
-    private int[][] readBlock(BitsBuffer bitsBuffer, int[] prevDc, int unit, LSBDataAction lsbDataAction) throws BitIOException {
+    private int[][] readBlock(BitsBuffer bitsBuffer, int[] prevDc, int unit, LSBDataAction lsbDataAction, BitPool bitPool) throws BitIOException {
         QuantTable quantTable = selectQuantTable(unit);
+
         int[][] block = new int[8][8];
 
         for (int i = 0; i < 8; i++) {
@@ -361,12 +384,13 @@ public class JPEGImageReader {
                     bitsBuffer.skipBits(codeLength);
 
                     HuffmanTable.TreeNode treeNode = treeNodeOptional.get();
+                    bitPool.writeBits(treeNode.getBitCode(), codeLength);
                     int weight = treeNode.getWeight();
 
                     if (weight > 0) {
                         int value = bitsBuffer.readBits(weight);
-
-                        //It will be useful when i decide to write a jpeg decoder, but not now..
+                        bitPool.writeBits(value, weight);
+                        //It will be useful when i decide to writeBit a jpeg decoder, but not now..
                         value = decipher(value, weight);
                         int prev = prevDc[unit < 4 ? 0 : (unit == 4 ? 1 : 2)];
                         value = value * quantTable.getQuant()[i][j] + prev;
@@ -386,6 +410,7 @@ public class JPEGImageReader {
                     int weight = treeNode.getWeight();
 
                     if (weight == 0) {
+                        bitPool.writeBits(treeNode.getBitCode(), codeLength);
                         bitsBuffer.skipBits(codeLength);
                         return block;
                     }
@@ -400,14 +425,32 @@ public class JPEGImageReader {
                         break;
                     }
 
+                    bitPool.writeBits(treeNode.getBitCode(), treeNode.getLength());
                     bitsBuffer.skipBits(codeLength);
                     int value = bitsBuffer.readBits(bitNum);
 
-
-                    if (unit < 4 && bitNum > 2 && !isDamageFF00(bitsBuffer)) {
-                        dataAction(lsbDataAction, bitsBuffer, value);
-
+                    if (unit < 4 && (value > 1 || value < -1)) {
+                        if (lsbDataAction instanceof LSBDataProducer) {
+                            LSBDataProducer producer = (LSBDataProducer) lsbDataAction;
+                            int in = producer.get();
+                            if (in == 0) {
+                                value &= (-1 << 1);
+                            } else if (in == 1) {
+                                value |= 1;
+                            }
+                            if (in != -1)
+                                bitPool.writeBits(value, bitNum);
+                        } else {
+                            LSBDataReceiver receiver = (LSBDataReceiver) lsbDataAction;
+                            int out = value & 0x1;
+                            if (receiver.canWrite()) {
+                                receiver.writeBit(out, true);
+                            }
+                        }
+                    } else {
+                        bitPool.writeBits(value, bitNum);
                     }
+
                     value = decipher(value, bitNum);
                     value = value * quantTable.getQuant()[i][j];
 
@@ -418,31 +461,6 @@ public class JPEGImageReader {
         return block;
     }
 
-    private boolean dataAction(LSBDataAction dataAction, BitsBuffer bitsBuffer, int value) throws BitIOException {
-        if (dataAction instanceof LSBDataProducer) {
-            LSBDataProducer producer = (LSBDataProducer) dataAction;
-            int in = producer.get();
-            if (in == -1)
-                return false;
-            else if (isGenerateFF(bitsBuffer, in)) {
-                producer.position(producer.position() - 1);
-            } else {
-                System.out.print(String.format("%d ", in));
-                bitsBuffer.getBitMap().write(bitsBuffer.getPosition() - 1, in);
-            }
-            return true;
-        } else if (dataAction instanceof LSBDataReceiver) {
-            LSBDataReceiver receiver = (LSBDataReceiver) dataAction;
-            int out = bitsBuffer.getBitMap().get(bitsBuffer.getPosition() - 1);
-            if (receiver.canWrite()) {
-                System.out.print(String.format("%d ", out));
-                receiver.write(out);
-            }
-            return true;
-        } else {
-            return true;
-        }
-    }
 
     private void initProperties() {
         yC = colorComponents.get(0);
@@ -481,70 +499,6 @@ public class JPEGImageReader {
                 return crCbAcHuffmanTable;
             }
         }
-    }
-
-    private boolean isDamageFF00(BitsBuffer buffer) throws BitIOException {
-        int range = buffer.getPosition() - 16;
-
-        BitMap bitMap = buffer.getBitMap();
-        int origin = bitMap.position();
-        bitMap.position(range);
-        for (int i = 0; i < 16; i++) {
-            if (bitMap.peekBits(16) == 0xff00) {
-                bitMap.position(origin);
-                return true;
-            }
-            bitMap.position(bitMap.position() + 1);
-        }
-        bitMap.position(origin);
-        return false;
-    }
-
-    private boolean isHaveFF(BitsBuffer buffer) throws BitIOException {
-        int range = buffer.getPosition() - 8;
-
-        BitMap bitMap = buffer.getBitMap();
-        int origin = bitMap.position();
-        bitMap.position(range);
-
-        for (int i = 0; i < 8; i++) {
-            if (bitMap.peekBits(8) == 0xff) {
-                return true;
-            } else {
-                bitMap.position(bitMap.position() + 1);
-            }
-        }
-
-        bitMap.position(origin);
-        return false;
-    }
-
-    private boolean isGenerateFF(BitsBuffer buffer, int value) throws BitIOException {
-        int there = buffer.getPosition() - 1;
-        int range = buffer.getPosition() - 8;
-
-        BitMap bitMap = buffer.getBitMap();
-        int origin = bitMap.position();
-        bitMap.position(there);
-        int originValue = bitMap.peekBits(1);
-        bitMap.position(range);
-
-        bitMap.write(there, value);
-        for (int i = 0; i < 8; i++) {
-            if (bitMap.peekBits(8) == 0xff) {
-                bitMap.write(there, originValue);
-                if (bitMap.peekBits(8) != 0xff) {
-                    bitMap.position(origin);
-                    return true;
-                } else {
-                    bitMap.write(there, value);
-                }
-            }
-            bitMap.position(bitMap.position() + 1);
-        }
-        bitMap.write(there, originValue);
-        bitMap.position(origin);
-        return false;
     }
 
     private QuantTable selectQuantTable(int i) {

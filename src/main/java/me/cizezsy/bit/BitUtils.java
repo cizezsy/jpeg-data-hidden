@@ -10,7 +10,7 @@ public class BitUtils {
 
     public static byte writeBit(byte b, int pos, int value) throws BitIOException {
         if (value != 1 && value != 0)
-            throw new BitIOException("write bit with a wrong value");
+            throw new BitIOException("writeBit bit with a wrong value");
         if (value == 0) {
             b = (byte) ((b & 0xff) & ~(1 << (7 - pos)));
         } else {
