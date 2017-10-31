@@ -438,8 +438,7 @@ public class JPEGImageReader {
                             } else if (in == 1) {
                                 value |= 1;
                             }
-                            if (in != -1)
-                                bitPool.writeBits(value, bitNum);
+                            bitPool.writeBits(value, bitNum);
                         } else {
                             LSBDataReceiver receiver = (LSBDataReceiver) lsbDataAction;
                             int out = value & 0x1;

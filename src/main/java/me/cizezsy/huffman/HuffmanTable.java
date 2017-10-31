@@ -19,8 +19,8 @@ public class HuffmanTable {
     public HuffmanTable(int id, int type, int[] eachNodeNum, int[] weights) {
         this.id = id;
         this.type = type;
-        this.eachNodeNum = eachNodeNum;
-        this.weights = weights;
+        this.eachNodeNum = Arrays.copyOf(eachNodeNum, eachNodeNum.length);
+        this.weights = Arrays.copyOf(weights, weights.length);
         initTree();
     }
 
@@ -35,28 +35,25 @@ public class HuffmanTable {
                 currentNodeNumIndex++;
             } else {
                 nodeNum[currentNodeNumIndex]--;
-                TreeNode treeNode = new TreeNode();
-                treeNode.weight = weights[currentWeightIndex++];
-                treeNode.length = currentNodeNumIndex + 1;
+                //TreeNode treeNode = new TreeNode();
+                int weight = weights[currentWeightIndex++];
+                int length = currentNodeNumIndex + 1;
+                int bitCode;
                 if (currentNode == null) {
-                    treeNode.bitCode = 0;
+                    bitCode = 0;
                 } else {
                     if (currentNode.length == currentNodeNumIndex + 1) {
-                        treeNode.bitCode = currentNode.bitCode + 1;
+                        bitCode = currentNode.bitCode + 1;
                     } else {
                         int shift = currentNodeNumIndex + 1 - currentNode.length;
-                        int bitCode = currentNode.bitCode + 1;
-                        treeNode.bitCode = bitCode << shift;
+                        bitCode = (currentNode.bitCode + 1) << shift;
                     }
                 }
+                TreeNode treeNode = new TreeNode(length, bitCode, weight);
                 treeNodes.add(treeNode);
                 currentNode = treeNode;
             }
         }
-    }
-
-    public void setTreeNodes(List<TreeNode> treeNodes) {
-        this.treeNodes = treeNodes;
     }
 
     public Optional<TreeNode> findTreeNode(int bitCode, int length) {
@@ -83,22 +80,6 @@ public class HuffmanTable {
         this.type = type;
     }
 
-    public int[] getEachNodeNum() {
-        return eachNodeNum;
-    }
-
-    public void setEachNodeNum(int[] eachNodeNum) {
-        this.eachNodeNum = eachNodeNum;
-    }
-
-    public int[] getWeights() {
-        return weights;
-    }
-
-    public void setWeights(int[] weights) {
-        this.weights = weights;
-    }
-
     public List<TreeNode> getTreeNodes() {
         return treeNodes;
     }
@@ -107,11 +88,8 @@ public class HuffmanTable {
         int length;
         int bitCode;
         int weight;
-
-        public TreeNode() {
-        }
-
-        public TreeNode(int length, int bitCode, int weight) {
+        
+        private TreeNode(int length, int bitCode, int weight) {
             this.length = length;
             this.bitCode = bitCode;
             this.weight = weight;
@@ -121,24 +99,13 @@ public class HuffmanTable {
             return length;
         }
 
-        public void setLength(int length) {
-            this.length = length;
-        }
-
         public int getBitCode() {
             return bitCode;
-        }
-
-        public void setBitCode(int bitCode) {
-            this.bitCode = bitCode;
         }
 
         public int getWeight() {
             return weight;
         }
 
-        public void setWeight(int weight) {
-            this.weight = weight;
-        }
     }
 }
